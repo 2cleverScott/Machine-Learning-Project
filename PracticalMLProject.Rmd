@@ -1,0 +1,127 @@
+---
+title: "Optimal Excercise with Machine Learning"
+author: "Scott Roberts"
+date: "May 30, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(ggplot2)
+library(caret)
+library(parallel)
+library(dplyr)
+library(doMC)
+registerDoMC(cores = 2)
+```
+
+##Synopsis
+
+The goal of this project was to determine how an excercise was done by the study's participant. Building a model with the data provided from the accelerometers will involve classification models.  With the number of dimensions in the data a number of models could be chosen for this prediction problem. Of, the models built and analysed, the Random Forest model had the highest accuracy. 
+
+##Analysis
+#Building the Model
+
+First, in order to build the model, we first load the training data and do some basic exploratory analysis and inspect the dimensions. There are a lot of NA values for over 100 of the variables.  So, we reduce the variables to include dimensions with useful data. the resulting dataframe had 51 variables.  53 variables had usefule data, but two variables,  were just totals for each window.
+
+
+
+Given resulting the dataframe, I wanted to explore a few different models. To improve the models, I used Cross validation using 3 folds, as 10 folds pushed the limits of my available computing power. Waiting hours for a model to complete was not practical for this Practical Machine Learning project.  I thought about using other cross validation methods, but stuck with a basic k-fold cross validation. The first model would be Recursive Partitioning and Regression Trees, which resulted in a low accuracy which I found unsatisfactory. 
+
+The second model, the Generalized Boosted Regression Model was much more accurate than the CART model. There was still room for improvement, so I built a Random Forest model. This latest model proved to be quite accurate, slightly more accurate than the GBM model.
+
+##Conclusion
+From the resulting high Accuracy and Kappa, the Random Forest model performed much better, and used it for the 20 test cases.  Confident the model would predict all cases more accurately than the CART or gbm models.
+
+##Reference
+
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+
+Read more: http://groupware.les.inf.puc-rio.br/har#ixzz4AxdwI56w
+
+##Appendix Code
+
+```{r echo=FALSE}
+
+### Obtain data from the site
+furl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+download.file(furl, destfile= "pml-training.csv", method="curl")
+pml.training <- read.csv("pml-training.csv")
+
+fturl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(fturl, destfile= "pml-testing.csv", method="curl")
+pml.testing <- read.csv("pml-testing.csv")
+
+pml1 <- subset(pml.training, select=c(classe,roll_belt,yaw_belt,gyros_belt_x,
+                                      gyros_belt_y,gyros_belt_z, accel_belt_x,accel_belt_y,accel_belt_z,magnet_belt_x,
+                                      magnet_belt_y,magnet_belt_z,pitch_belt, pitch_forearm,
+                                      roll_arm,pitch_arm,yaw_arm, roll_forearm, gyros_forearm_x,
+                                      gyros_forearm_y, gyros_forearm_z, accel_forearm_x, accel_forearm_y, 
+                                      accel_forearm_z, magnet_forearm_x, magnet_forearm_y, magnet_forearm_z,total_accel_forearm,
+                                      roll_forearm, pitch_forearm, yaw_forearm,gyros_dumbbell_x, gyros_dumbbell_y,
+                                      gyros_dumbbell_z, accel_dumbbell_x, accel_dumbbell_y, accel_dumbbell_z,
+                                      magnet_dumbbell_x, magnet_dumbbell_y, magnet_dumbbell_z,
+                                      gyros_arm_x, gyros_arm_y, gyros_arm_z, accel_arm_x,accel_arm_y,
+                                      accel_arm_z, magnet_arm_x, magnet_arm_y, magnet_arm_z,roll_dumbbell,
+                                      pitch_dumbbell, yaw_dumbbell
+                                      
+))
+excercisedf <- tbl_df(pml1)
+
+##Load Testing Data
+
+
+pmltest <- subset(pml.testing,select=c(roll_belt,yaw_belt,gyros_belt_x,
+                                        gyros_belt_y,gyros_belt_z, accel_belt_x,accel_belt_y,accel_belt_z,magnet_belt_x,
+                                        magnet_belt_y,magnet_belt_z,pitch_belt, pitch_forearm,
+                                        roll_arm,pitch_arm,yaw_arm, roll_forearm, gyros_forearm_x,
+                                        gyros_forearm_y, gyros_forearm_z, accel_forearm_x, accel_forearm_y, 
+                                        accel_forearm_z, magnet_forearm_x, magnet_forearm_y, magnet_forearm_z,total_accel_forearm,
+                                        roll_forearm, pitch_forearm, yaw_forearm,gyros_dumbbell_x, gyros_dumbbell_y,
+                                        gyros_dumbbell_z, accel_dumbbell_x, accel_dumbbell_y, accel_dumbbell_z,
+                                        magnet_dumbbell_x, magnet_dumbbell_y, magnet_dumbbell_z,
+                                        gyros_arm_x, gyros_arm_y, gyros_arm_z, accel_arm_x,accel_arm_y,
+                                        accel_arm_z, magnet_arm_x, magnet_arm_y, magnet_arm_z,roll_dumbbell,
+                                        pitch_dumbbell, yaw_dumbbell
+                                        
+))
+```
+#Explore the Data
+
+```{r}
+##Roll dumbell roll arm roll belt
+plot(excercisedf$classe, excercisedf$pitch_belt)
+
+```
+
+
+```{r}
+set.seed(93402)
+#Set the Cross Validation Folds
+cvcontrol <- trainControl(## 3-fold Cross-Validation
+    method = "repeatedcv",
+    number = 3,
+    repeats = 3)
+
+#Form models and choose the best, with the CART model, Gradient Boosted Machine and Random Forests
+
+cartfit  <- train(classe~., data=excercisedf,method="rpart")
+
+cartfit
+predict(cartfit,pmltest)
+plot(cartfit)
+
+#Generalized Boosted Regression Model
+excgbmfit <- train(classe~., data=excercisedf,method="gbm", trControl=cvcontrol, verbose=FALSE )
+excgbmfit
+predict(excgbmfit,pmltest)
+plot(excgbmfit)
+
+#Random Forest Model
+excrffit <- train(classe~., data=excercisedf,method="rf", trainControl=cvcontrol,verbose=FALSE )
+excrffit
+plot(excrffit)
+predict(excrffit,pmltest)
+
+```
